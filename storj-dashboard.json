@@ -1,0 +1,11 @@
+{
+    "nodes": {
+        "Node 01": ["/path/to/node.log", "/path/to/db-folder"],
+        "Node 02": ["/path/to/node.log", "/path/to/db-folder"],
+        "Node 03": ["/path/to/node.log", "/path/to/db-folder"]
+    },
+    
+    "earningscalculator": {
+        "path": "/path/to/earnings.py"
+    }
+}
