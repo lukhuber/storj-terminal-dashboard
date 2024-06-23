@@ -3,7 +3,7 @@ Storj Terminal Dashboard serves as a utility to monitor and display the operatio
 
 It uses [René Smeekes](https://github.com/ReneSmeekes)'s [storj_earnings](https://github.com/ReneSmeekes/storj_earnings) script to pull financial and disk storage data. 
 
-![Screenshot of the storj terminal dashboard](https://github.com/lukhuber/storj-terminal-dashboard/blob/master/screenshot.png?raw=true)
+![Screenshot of the storj terminal dashboard](https://github.com/lukhuber/storj-terminal-dashboard/blob/main/images/screenshot.png?raw=true)
 
 ## Prerequisites
 Python 3.2 or newer is required in order to run this script. 
