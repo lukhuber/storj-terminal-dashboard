@@ -11,6 +11,9 @@ It was tested on Linux with Python 3.12. Other operating systems are likely to a
 
 [This storj_earnings](https://github.com/ReneSmeekes/storj_earnings) script is required.
 
+### Warning
+As the [storj_earnings](https://github.com/ReneSmeekes/storj_earnings) script is invoked when using this dashboard, all limitations and precautions of it also apply. Please refer to the information about running the script in its respective repository.
+
 ## Usage
 Adjust the respective paths to the logs and databases of each node in <code>storj-dashboard.json</code>. Note that the log path must be specified up to the file. The database path only needs to be specified up to the containing folder. 
 
