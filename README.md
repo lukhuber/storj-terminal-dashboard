@@ -7,7 +7,7 @@ It uses [René Smeekes](https://github.com/ReneSmeekes)'s [storj_earnings](https
 
 ## Prerequisites
 Python 3.2 or newer is required in order to run this script. 
-It was tested on Linux with 3.12. Other operating systems are likely to also work.
+It was tested on Linux with Python 3.12. Other operating systems are likely to also work.
 
 [This storj_earnings](https://github.com/ReneSmeekes/storj_earnings) script is required.
 
