@@ -72,7 +72,7 @@ def extract_percentage(s):
     match = re.search(r'(\d+\.\d+)%', s)
     if match:
         # Extrahiere den gefundenen Prozentwert als Float
-        return float(match.group(1))
+        return f'%.2f' % float(match.group(1))
     else:
         return None
 
