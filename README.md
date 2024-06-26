@@ -24,3 +24,7 @@ To start the script, simply run it:
 ./storj-dashboard.py
 ```
 
+Optionally, you can use multiple different config files if you want. This is useful, if you want to display different subsets of you nodes. Just add the path to the config file after the command:
+```
+./storj-dashboard.py <path/to/config.json>
+```
