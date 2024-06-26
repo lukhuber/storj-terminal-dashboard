@@ -291,7 +291,7 @@ class Node:
 		try:
 			sys.stdout.write('\r[ ~~ ] Running earnings calculator for ' +  self.name + '\r')
 			sys.stdout.flush()
-			self.earnings = subprocess.run(['python3', earningsCalculator, dbPath], capture_output=True, text=True)
+			self.earnings = subprocess.run([sys.executable, earningsCalculator, dbPath], capture_output=True, text=True)
 			sys.stdout.write('\r[ OK ] Running earnings calculator for ' +  self.name + '\n')
 			sys.stdout.flush()
 		except:
