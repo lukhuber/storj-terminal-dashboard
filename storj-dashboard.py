@@ -30,7 +30,7 @@ def main():
         for name, paths in paths.items():
             nodes.append(Node(name, paths[0], paths[1], earningsCalculator))
 
-        # Dashboard anzeigen
+        # Display dashboard
         for node in nodes:
             Terminal.print_Node_Details(node)
 
@@ -43,7 +43,7 @@ def main():
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-# Helper function to add color without affecting length
+# Helper function to add color to terminal output without affecting length
 def colored_value(value):
 	running  = '\033[31m'
 	unknown  = '\033[93m'
@@ -62,28 +62,28 @@ def colored_value(value):
 
 
 def find_second_space_from_right(s):
-    # String umkehren
+    # Reverse the input string
     reversed_s = s[::-1]
 
-    # Positionen der Leerzeichen im umgekehrten String finden
+    # Find all spaces in the string
     space_positions = [pos for pos, char in enumerate(reversed_s) if char == ' ']
 
-    # Prüfen, ob es mindestens zwei Leerzeichen gibt
+    # Check if there are at least 2 spaces
     if len(space_positions) < 2:
-        return -1  # Oder eine andere angemessene Rückgabe, wenn es weniger als zwei Leerzeichen gibt
+        return -1 
 
-    # Position des zweiten Leerzeichens vom Ende
+    # Position of second space
     second_space_from_right = space_positions[1]
 
-    # Position im ursprünglichen String
+    # Position of second space in original string
     return len(s) - 1 - second_space_from_right
 
 
 def extract_percentage(s):
-    # Suche nach einem Muster, das einer Zahl mit einem Dezimalpunkt und einem %-Zeichen entspricht
+    # Search for percentage in string
     match = re.search(r'(\d+\.\d+)%', s)
     if match:
-        # Extrahiere den gefundenen Prozentwert als Float
+        # Extract percentage as float
         return f'%.2f' % float(match.group(1))
     else:
         return None
@@ -179,8 +179,6 @@ class Terminal:
 		for sat, value in usf.items():
 			usf[sat] = str(value) + " running"
 		
-
-
 		print("")
 		print("")
 		print("═══════════════════════════ All Nodes - Summary ══════════════════════════")
@@ -241,12 +239,12 @@ class Node:
 
 	def read_Log(self, logPath):
 		try:
-			# Dateigröße in Megabyte ermitteln
+			# Get file size in MB
 			total_size_bytes = os.path.getsize(logPath)
-			total_size_mb = total_size_bytes / (1024 * 1024)  # Bytes in Megabyte umrechnen
-			total_size_mb_rounded = round(total_size_mb, 1)   # Auf eine Stelle nach dem Dezimalpunkt runden
+			total_size_mb = total_size_bytes / (1024 * 1024)  # Bytes to MB
+			total_size_mb_rounded = round(total_size_mb, 1)   # Round to one decimal place
 
-			# Fortschrittsanzeige vorbereiten
+			# Prepare progress bar
 			bytes_read = 0
 			sys.stdout.write(f'\r[ ~~ ] Reading log of {self.name} ... {bytes_read / (1024 * 1024):.1f}/{total_size_mb_rounded} MB')
 			sys.stdout.flush()
@@ -311,7 +309,6 @@ class Node:
 
 
 	def parse_Earnings_Calculator(self):
-		#print(self.earnings.stdout)
 		for line in self.earnings.stdout.splitlines():
 			if "Total\t\t\t\t\t" in line:
 				i = line.rfind(' ')
