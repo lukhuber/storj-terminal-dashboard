@@ -3,7 +3,6 @@
 import re
 import os
 import sys
-import time
 import subprocess
 import json
 import argparse
