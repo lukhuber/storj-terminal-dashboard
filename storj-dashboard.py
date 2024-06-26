@@ -6,30 +6,43 @@ import sys
 import time
 import subprocess
 import json
+import argparse
 from datetime import datetime
 from enum import Enum
 
 def main():
-	try: 
-		with open('storj-dashboard.json', 'r') as file:
-			config = json.load(file)
+    # Initialise argument parser
+    parser = argparse.ArgumentParser(description="Provides a terminal dashboard for storj nodes")
+    parser.add_argument('config_file', nargs='?', default='storj-dashboard.json', help='Path to config file (Default: storj-dashboard.json)')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    config_file = args.config_file
+    
+    try: 
+        with open(config_file, 'r') as file:
+            config = json.load(file)
 
-		paths = config['nodes']
-		earningsCalculator = config['earningscalculator']['path']
+        paths = config['nodes']
+        earningsCalculator = config['earningscalculator']['path']
 
-		nodes = []
+        nodes = []
 
-		for name, paths in paths.items():
-			nodes.append(Node(name, paths[0], paths[1], earningsCalculator))
+        for name, paths in paths.items():
+            nodes.append(Node(name, paths[0], paths[1], earningsCalculator))
 
-		# Show dashboard
-		for node in nodes:
-			Terminal.print_Node_Details(node)
+        # Dashboard anzeigen
+        for node in nodes:
+            Terminal.print_Node_Details(node)
 
-		Terminal.print_Summary(nodes)
+        Terminal.print_Summary(nodes)
 
-	except Exception as e:
-		raise
+    except FileNotFoundError:
+        print(f"Error: The file '{config_file}' was not found. Please check the path and try again.")
+    except json.JSONDecodeError:
+        print(f"Error: The file '{config_file}' is not a valid JSON file. Please check the content and try again.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 # Helper function to add color without affecting length
 def colored_value(value):
