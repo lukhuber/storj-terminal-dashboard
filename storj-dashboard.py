@@ -10,38 +10,38 @@ from datetime import datetime
 from enum import Enum
 
 def main():
-    # Initialise argument parser
-    parser = argparse.ArgumentParser(description="Provides a terminal dashboard for storj nodes")
-    parser.add_argument('config_file', nargs='?', default='storj-dashboard.json', help='Path to config file (Default: storj-dashboard.json)')
-    
-    # Parse arguments
-    args = parser.parse_args()
-    config_file = args.config_file
-    
-    try: 
-        with open(config_file, 'r') as file:
-            config = json.load(file)
+	# Initialise argument parser
+	parser = argparse.ArgumentParser(description="Provides a terminal dashboard for storj nodes")
+	parser.add_argument('config_file', nargs='?', default='storj-dashboard.json', help='Path to config file (Default: storj-dashboard.json)')
+	
+	# Parse arguments
+	args = parser.parse_args()
+	config_file = args.config_file
+	
+	try: 
+		with open(config_file, 'r') as file:
+			config = json.load(file)
 
-        paths = config['nodes']
-        earningsCalculator = config['earningscalculator']['path']
+		paths = config['nodes']
+		earningsCalculator = config['earningscalculator']['path']
 
-        nodes = []
+		nodes = []
 
-        for name, paths in paths.items():
-            nodes.append(Node(name, paths[0], paths[1], earningsCalculator))
+		for name, paths in paths.items():
+			nodes.append(Node(name, paths[0], paths[1], earningsCalculator))
 
-        # Display dashboard
-        for node in nodes:
-            Terminal.print_Node_Details(node)
+		# Display dashboard
+		for node in nodes:
+			Terminal.print_Node_Details(node)
 
-        Terminal.print_Summary(nodes)
+		Terminal.print_Summary(nodes)
 
-    except FileNotFoundError:
-        print(f"Error: The file '{config_file}' was not found. Please check the path and try again.")
-    except json.JSONDecodeError:
-        print(f"Error: The file '{config_file}' is not a valid JSON file. Please check the content and try again.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+	except FileNotFoundError:
+		print(f"Error: The file '{config_file}' was not found. Please check the path and try again.")
+	except json.JSONDecodeError:
+		print(f"Error: The file '{config_file}' is not a valid JSON file. Please check the content and try again.")
+	except Exception as e:
+		print(f"An unexpected error occurred: {e}")
 
 # Helper function to add color to terminal output without affecting length
 def colored_value(value):
@@ -62,31 +62,41 @@ def colored_value(value):
 
 
 def find_second_space_from_right(s):
-    # Reverse the input string
-    reversed_s = s[::-1]
+	# Reverse the input string
+	reversed_s = s[::-1]
 
-    # Find all spaces in the string
-    space_positions = [pos for pos, char in enumerate(reversed_s) if char == ' ']
+	# Find all spaces in the string
+	space_positions = [pos for pos, char in enumerate(reversed_s) if char == ' ']
 
-    # Check if there are at least 2 spaces
-    if len(space_positions) < 2:
-        return -1 
+	# Check if there are at least 2 spaces
+	if len(space_positions) < 2:
+		return -1 
 
-    # Position of second space
-    second_space_from_right = space_positions[1]
+	# Position of second space
+	second_space_from_right = space_positions[1]
 
-    # Position of second space in original string
-    return len(s) - 1 - second_space_from_right
+	# Position of second space in original string
+	return len(s) - 1 - second_space_from_right
 
 
 def extract_percentage(s):
-    # Search for percentage in string
-    match = re.search(r'(\d+\.\d+)%', s)
-    if match:
-        # Extract percentage as float
-        return f'%.2f' % float(match.group(1))
-    else:
-        return None
+	# Search for percentage in string
+	match = re.search(r'(\d+\.\d+)%', s)
+	if match:
+		# Extract percentage as float
+		return f'%.2f' % float(match.group(1))
+	else:
+		return None
+
+# Helper function to calculate the length of a string without ANSI escape sequences
+def visible_length(s):
+	return len(re.sub(r'\033\[[0-9;]*m', '', s))
+
+# Function to pad a string with spaces considering ANSI escape sequences
+def pad_with_color(s, total_length):
+	clean_length = visible_length(s)
+	padding = total_length - clean_length
+	return ' ' * padding + s
 
 class Terminal:
 	def print_Node_Details(node):
@@ -97,9 +107,11 @@ class Terminal:
 		unpaid_data = str(node.unpaid_data)
 		deviation_warning = ""
 
+		# Check if deviation_percentage is set and format the warning string with ANSI color codes
 		if str(node.deviation_percentage):
 			deviation_warning = f"\033[31m Report Deviation: {str(node.deviation_percentage)} % \033[0m"
 
+		# Retrieve and color format values for different satellites
 		gcf_sl  = colored_value(node.gcf[Satellite.SL])
 		gcf_ap1 = colored_value(node.gcf[Satellite.AP1])
 		gcf_eu1 = colored_value(node.gcf[Satellite.EU1])
@@ -119,17 +131,17 @@ class Terminal:
 		print("")
 		print("═══ {} - Detailed information".format(name))
 		print("")
-		print("┌───── NODE MAIN STATS ─────┐┌─────────────── FILEWALKER ────────────────┐")
-		print("│                           ││                                           │")
-		print("│ Current Total: {:>8} $ ││       GARBAGE     TRASH       USED SPACE  │".format(current_total))
-		print("│ Estimated Total: {:>6} $ ││       COLLECTOR   CLEANUP     FILEWALKER  │".format(estimated_total))
-		print("│                           ││                                           │")
-		print("│ Disk Used: {:>14} ││   SL  {:21}{:21}{:20} │".format(disk_used, gcf_sl, tcf_sl, usf_sl))
-		print("│ Unpaid Data: {:>12} ││  AP1  {:21}{:21}{:20} │".format(unpaid_data, gcf_ap1, tcf_ap1, usf_ap1))
-		print("│                           ││  EU1  {:21}{:21}{:20} │".format(gcf_eu1, tcf_eu1, usf_eu1))
-		print("│{:>27}││  US1  {:21}{:21}{:20} │".format(deviation_warning, gcf_us1, tcf_us1, usf_us1))
-		print("│                           ││                                           │  ")
-		print("└───────────────────────────┘└───────────────────────────────────────────┘  ")
+		print("┌───── NODE MAIN STATS ──────┐┌─────────────── FILEWALKER ────────────────┐")
+		print("│                            ││                                           │")
+		print("│ Current Total: {:>9} $ ││       GARBAGE     TRASH       USED SPACE  │".format(current_total))
+		print("│ Estimated Total: {:>7} $ ││       COLLECTOR   CLEANUP     FILEWALKER  │".format(estimated_total))
+		print("│                            ││                                           │")
+		print("│ Disk Used: {:>15} ││   SL  {:21}{:21}{:20} │".format(disk_used, gcf_sl, tcf_sl, usf_sl))
+		print("│ Unpaid Data: {:>13} ││  AP1  {:21}{:21}{:20} │".format(unpaid_data, gcf_ap1, tcf_ap1, usf_ap1))
+		print("│                            ││  EU1  {:21}{:21}{:20} │".format(gcf_eu1, tcf_eu1, usf_eu1))
+		print("│{:>28}││  US1  {:21}{:21}{:20} │".format(pad_with_color(deviation_warning, 28), gcf_us1, tcf_us1, usf_us1))
+		print("│                            ││                                           │  ")
+		print("└────────────────────────────┘└───────────────────────────────────────────┘  ")
 
 	def print_Summary(nodes):
 		summed_estimated_total = 0
