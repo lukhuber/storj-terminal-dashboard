@@ -6,7 +6,7 @@ import sys
 import subprocess
 import json
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 
 def main():
@@ -48,6 +48,7 @@ def colored_value(value):
 	running  = '\033[31m'
 	unknown  = '\033[93m'
 	reset    = '\033[0m'
+	offline  = '\033[31m'
 
 	color = ""
 
@@ -55,6 +56,8 @@ def colored_value(value):
 		color = running
 	elif value == "unknown":
 		color = unknown
+	elif value == "offline":
+		color = offline
 	else:
 		color = '\033[92m'
 
@@ -98,6 +101,26 @@ def pad_with_color(s, total_length):
 	padding = total_length - clean_length
 	return ' ' * padding + s
 
+# Function to convert bytes to appropriate unit
+def convert_from_bytes(total_bytes):
+	units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+	unit_index = 0
+	while total_bytes >= 1024 and unit_index < len(units) - 1:
+		total_bytes /= 1024
+		unit_index += 1
+	return f'{total_bytes:.2f} {units[unit_index]}'
+
+# Function to convert units to bytes for summation
+def convert_to_bytes(value, unit):
+	units = {
+		'KB': 1024,
+		'MB': 1024 ** 2,
+		'GB': 1024 ** 3,
+		'TB': 1024 ** 4,
+		'PB': 1024 ** 5
+	}
+	return float(value) * units[unit]
+
 class Terminal:
 	def print_Node_Details(node):
 		name = str(node.name)
@@ -106,6 +129,7 @@ class Terminal:
 		disk_used = str(node.disk_used)
 		unpaid_data = str(node.unpaid_data)
 		deviation_warning = ""
+		uptime = colored_value(str(node.uptime))
 
 		# Check if deviation_percentage is set and format the warning string with ANSI color codes
 		if str(node.deviation_percentage):
@@ -131,20 +155,24 @@ class Terminal:
 		print("")
 		print("═══ {} - Detailed information".format(name))
 		print("")
-		print("┌───── NODE MAIN STATS ──────┐┌─────────────── FILEWALKER ────────────────┐")
-		print("│                            ││                                           │")
-		print("│ Current Total: {:>9} $ ││       GARBAGE     TRASH       USED SPACE  │".format(current_total))
-		print("│ Estimated Total: {:>7} $ ││       COLLECTOR   CLEANUP     FILEWALKER  │".format(estimated_total))
-		print("│                            ││                                           │")
-		print("│ Disk Used: {:>15} ││   SL  {:21}{:21}{:20} │".format(disk_used, gcf_sl, tcf_sl, usf_sl))
-		print("│ Unpaid Data: {:>13} ││  AP1  {:21}{:21}{:20} │".format(unpaid_data, gcf_ap1, tcf_ap1, usf_ap1))
-		print("│                            ││  EU1  {:21}{:21}{:20} │".format(gcf_eu1, tcf_eu1, usf_eu1))
-		print("│{:>28}││  US1  {:21}{:21}{:20} │".format(pad_with_color(deviation_warning, 28), gcf_us1, tcf_us1, usf_us1))
-		print("│                            ││                                           │  ")
-		print("└────────────────────────────┘└───────────────────────────────────────────┘  ")
+		print("┌─────────────────── NODE MAIN STATS ────────────────────┐┌─────────────── FILEWALKER ────────────────┐")
+		print("│                                                        ││                                           │")
+		print("│ Current Total: {:>9} $        Uptime: {:>8}     ││       GARBAGE     TRASH       USED SPACE  │".format(current_total, pad_with_color(uptime, 8)))
+		print("│ Estimated Total: {:>7} $                             ││       COLLECTOR   CLEANUP     FILEWALKER  │".format(estimated_total))
+		print("│                                                        ││                                           │")
+		print("│ Disk Used: {:>15}                             ││   SL  {:21}{:21}{:20} │".format(disk_used, gcf_sl, tcf_sl, usf_sl))
+		print("│ Unpaid Data: {:>13}                             ││  AP1  {:21}{:21}{:20} │".format(unpaid_data, gcf_ap1, tcf_ap1, usf_ap1))
+		print("│                                                        ││  EU1  {:21}{:21}{:20} │".format(gcf_eu1, tcf_eu1, usf_eu1))
+		print("│{:>28}                            ││  US1  {:21}{:21}{:20} │".format(pad_with_color(deviation_warning, 28), gcf_us1, tcf_us1, usf_us1))
+		print("│                                                        ││                                           │ ")
+		print("└────────────────────────────────────────────────────────┘└───────────────────────────────────────────┘ ")
 
 	def print_Summary(nodes):
+		summed_current_total = 0
 		summed_estimated_total = 0
+		summed_disk_used = 0
+		summed_unpaid_data = 0
+
 
 		gcf = {
 			Satellite.SL  : 0,
@@ -168,7 +196,19 @@ class Terminal:
 			}
 
 		for node in nodes:
+			# Sum up "current total"
+			summed_current_total += float(node.current_total)
+
+			# Sum up "estimated total"
 			summed_estimated_total += float(node.estimated_total)
+
+			# Sum up "disk used"
+			disk_value, disk_unit = node.disk_used.split()
+			summed_disk_used += convert_to_bytes(disk_value, disk_unit)
+
+			# Sum up "unpaid data"
+			unpaid_value, unpaid_unit = node.unpaid_data.split()
+			summed_unpaid_data += convert_to_bytes(unpaid_value, unpaid_unit)
 
 			for sat in node.gcf:
 				if node.gcf[sat] == "running":
@@ -190,22 +230,25 @@ class Terminal:
 
 		for sat, value in usf.items():
 			usf[sat] = str(value) + " running"
-		
+
+		summed_disk_used = str(convert_from_bytes(summed_disk_used))
+		summed_unpaid_data = str(convert_from_bytes(summed_unpaid_data))
+
 		print("")
 		print("")
-		print("═══════════════════════════ All Nodes - Summary ══════════════════════════")
+		print("═════════════════════════════════════════ All Nodes - Summary ═════════════════════════════════════════")
 		print("")
-		print("┌───── NODE MAIN STATS ─────┐┌─────────────── FILEWALKER ────────────────┐")
-		print("│                           ││                                           │")
-		print("│ Estimated total: $ {:6.2f} ││       GARBAGE     TRASH       USED SPACE  │".format(summed_estimated_total))
-		print("│                           ││       COLLECTOR   CLEANUP     FILEWALKER  │")
-		print("└───────────────────────────┘│                                           │")
-		print("                             │   SL  {:12}{:12}{:11} │".format(gcf[Satellite.SL], tcf[Satellite.SL], usf[Satellite.SL]))
-		print("                             │  AP1  {:12}{:12}{:11} │".format(gcf[Satellite.AP1], tcf[Satellite.AP1], usf[Satellite.AP1]))
-		print("                             │  EU1  {:12}{:12}{:11} │".format(gcf[Satellite.EU1], tcf[Satellite.EU1], usf[Satellite.EU1]))
-		print("                             │  US1  {:12}{:12}{:11} │".format(gcf[Satellite.US1], tcf[Satellite.US1], usf[Satellite.US1]))
-		print("                             │                                           │  ")
-		print("                             └───────────────────────────────────────────┘  ")
+		print("┌─────────────────── NODE MAIN STATS ────────────────────┐┌─────────────── FILEWALKER ────────────────┐")
+		print("│                                                        ││                                           │")
+		print("│ Current total:    {:6.2f} $                             ││       GARBAGE     TRASH       USED SPACE  │".format(summed_current_total))
+		print("│ Estimated total:  {:6.2f} $                             ││       COLLECTOR   CLEANUP     FILEWALKER  │".format(summed_estimated_total))
+		print("│                                                        ││                                           │")
+		print("│ Disk used: {:>15}                             ││   SL  {:12}{:12}{:11} │".format(summed_disk_used, gcf[Satellite.SL], tcf[Satellite.SL], usf[Satellite.SL]))
+		print("│ Unpaid Data: {:>13}                             ││  AP1  {:12}{:12}{:11} │".format(summed_unpaid_data, gcf[Satellite.AP1], tcf[Satellite.AP1], usf[Satellite.AP1]))
+		print("│                                                        ││  EU1  {:12}{:12}{:11} │".format(gcf[Satellite.EU1], tcf[Satellite.EU1], usf[Satellite.EU1]))
+		print("│                                                        ││  US1  {:12}{:12}{:11} │".format(gcf[Satellite.US1], tcf[Satellite.US1], usf[Satellite.US1]))
+		print("│                                                        ││                                           │ ")
+		print("└────────────────────────────────────────────────────────┘└───────────────────────────────────────────┘ ")
 
 
 class Node:
@@ -214,10 +257,12 @@ class Node:
 		self.log = ""
 		self.earnings = ""
 		self.current_total = ""
+		self.is_up = False
 		self.estimated_total = ""
 		self.disk_used = ""
 		self.unpaid_data =""
 		self.deviation_percentage = ""
+		self.uptime = ""
 		
 		# Used to store if USF is running
 		self.usf = {
@@ -265,7 +310,6 @@ class Node:
 				for line in f:
 					bytes_read += len(line.encode('utf-8'))  # Anzahl der gelesenen Bytes aktualisieren
 
-
 					if "trash-cleanup-filewalker" in line:
 						self.parse_TCF_line(line)
 					elif "gc-filewalker" in line:
@@ -273,7 +317,12 @@ class Node:
 					elif "used-space-filewalker" in line:
 						self.parse_USF_line(line)
 					elif "Configuration loaded" in line:
+						self.is_up = True
+						self.set_uptime(line)
 						self.reset_all_states()
+					elif 'Got a signal from the OS: "terminated"' in line:
+						self.is_up = False
+						self.set_offline()
 
 					sys.stdout.write(f'\r[ ~~ ] Reading log of {self.name} ... {bytes_read / (1024 * 1024):.1f}/{total_size_mb_rounded} MB')
 					sys.stdout.flush()
@@ -282,6 +331,65 @@ class Node:
 			sys.stdout.flush()
 		except:
 			raise
+
+
+	def set_uptime(self, line):
+		# Extract the timestamp string from the log line
+		timestamp_str = line[:25]
+
+		try:
+			# Try to parse the timestamp including the timezone if present
+			time = datetime.fromisoformat(timestamp_str)
+		except ValueError:
+			# If no timezone is present, parse without timezone and assume it's UTC
+			time = datetime.strptime(timestamp_str[:19], '%Y-%m-%dT%H:%M:%S')
+			time = time.replace(tzinfo=timezone.utc)
+
+		# Normalize the time to UTC
+		time_utc = time.astimezone(timezone.utc)
+
+		# Get the current time in UTC
+		current_time_utc = datetime.now(timezone.utc)
+
+		# Calculate the uptime
+		uptime = current_time_utc - time_utc
+
+		# Extract days and hours from the uptime
+		days = uptime.days
+		hours, remainder = divmod(uptime.seconds, 3600)
+
+		# Format the output string
+		output = f'{days}d {hours}h'
+
+		# Set the uptime
+		self.uptime = output
+
+
+	def set_offline(self):
+		self.usf = {
+			Satellite.SL  : "offline",
+			Satellite.AP1 : "offline",
+			Satellite.US1 : "offline",
+			Satellite.EU1 : "offline"
+		}
+
+		# Used to store if GCF is running
+		self.gcf = {
+			Satellite.SL  : "offline",
+			Satellite.AP1 : "offline",
+			Satellite.US1 : "offline",
+			Satellite.EU1 : "offline"
+		}
+
+		# Used to store if TCF is running
+		self.tcf = {
+			Satellite.SL  : "offline",
+			Satellite.AP1 : "offline",
+			Satellite.US1 : "offline",
+			Satellite.EU1 : "offline"
+		}
+
+		self.uptime = "offline"		
 
 
 	def reset_all_states(self):
@@ -369,11 +477,27 @@ class Node:
 
 
 	def parse_date_and_time(self, line):
-		time = datetime.strptime(line[0:19], '%Y-%m-%dT%H:%M:%S')
-		current_time = datetime.now()
+		# Extract the timestamp string from the log line
+		timestamp_str = line[:25]
 
-		time_difference = current_time - time
+		try:
+			# Try to parse the timestamp including the timezone if present
+			time = datetime.fromisoformat(timestamp_str)
+		except ValueError:
+			# If no timezone is present, parse without timezone and assume it's UTC
+			time = datetime.strptime(timestamp_str[:19], '%Y-%m-%dT%H:%M:%S')
+			time = time.replace(tzinfo=timezone.utc)
 
+		# Normalize the time to UTC
+		time_utc = time.astimezone(timezone.utc)
+
+		# Get the current time in UTC
+		current_time_utc = datetime.now(timezone.utc)
+
+		# Calculate the time difference
+		time_difference = current_time_utc - time_utc
+
+		# Extract days, hours, minutes, and seconds from the time difference
 		days = time_difference.days
 		seconds = time_difference.seconds
 		hours, remainder = divmod(seconds, 3600)
