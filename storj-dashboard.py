@@ -341,7 +341,10 @@ class Node:
 		try:
 			sys.stdout.write(f'\r[ ~~ ] Running earnings calculator for {self.name}\r')
 			sys.stdout.flush()
-			self.earnings = subprocess.run([sys.executable, earnings_calculator, db_path], capture_output=True, text=True)
+			
+			self.earnings = subprocess.run([sys.executable, earnings_calculator, db_path], capture_output=True, text=False)
+			self.earnings.stdout = self.earnings.stdout.decode('utf-8')
+			
 			sys.stdout.write(f'\r[ OK ] Running earnings calculator for {self.name}\n')
 			sys.stdout.flush()
 		except subprocess.SubprocessError:
@@ -409,5 +412,5 @@ class Satellite(Enum):
 
 if __name__ == "__main__":
 	if sys.platform.startswith('win'):
-    	init()  # Windows needs initialization of colorama
+		init()  # Windows needs initialization of colorama
 	main()
