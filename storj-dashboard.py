@@ -7,8 +7,10 @@ import subprocess
 import json
 import glob
 import argparse
-from datetime import datetime, timezone, timedelta
 from enum import Enum
+from datetime import datetime, timezone, timedelta
+from colorama import init, Fore, Style
+
 
 def main():
 	# Initialise argument parser
@@ -46,23 +48,21 @@ def main():
 
 # Helper function to add color to terminal output without affecting length
 def colored_value(value):
-	running  = '\033[31m'
-	unknown  = '\033[93m'
-	reset    = '\033[0m'
-	offline  = '\033[31m'
+    running = Fore.RED
+    unknown = Fore.YELLOW
+    offline = Fore.RED
+    default = Fore.GREEN
 
-	color = ""
+    color = default
 
-	if value == "running":
-		color = running
-	elif value == "unknown":
-		color = unknown
-	elif value == "offline":
-		color = offline
-	else:
-		color = '\033[92m'
+    if value == "running":
+        color = running
+    elif value == "unknown":
+        color = unknown
+    elif value == "offline":
+        color = offline
 
-	return f"{color}{value}{reset}"
+    return f"{color}{value}{Style.RESET_ALL}"
 
 
 def find_second_space_from_right(s):
@@ -408,4 +408,6 @@ class Satellite(Enum):
 
 
 if __name__ == "__main__":
+	if sys.platform.startswith('win'):
+    	init()  # Windows needs initialization of colorama
 	main()
