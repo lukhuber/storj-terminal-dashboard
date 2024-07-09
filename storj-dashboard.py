@@ -5,6 +5,7 @@ import os
 import sys
 import subprocess
 import json
+import glob
 import argparse
 from datetime import datetime, timezone, timedelta
 from enum import Enum
@@ -252,7 +253,7 @@ class Terminal:
 
 
 class Node:
-	def __init__(self, name, logPath, dbPath, earningsCalculator):
+	def __init__(self, name, log_dir, db_path, earnings_calculator):
 		self.name = name
 		self.log = ""
 		self.earnings = ""
@@ -260,249 +261,142 @@ class Node:
 		self.is_up = False
 		self.estimated_total = ""
 		self.disk_used = ""
-		self.unpaid_data =""
+		self.unpaid_data = ""
 		self.deviation_percentage = ""
 		self.uptime = ""
-		
-		# Used to store if USF is running
-		self.usf = {
-			Satellite.SL  : "unknown",
-			Satellite.AP1 : "unknown",
-			Satellite.US1 : "unknown",
-			Satellite.EU1 : "unknown"
-		}
 
-		# Used to store if GCF is running
-		self.gcf = {
-			Satellite.SL  : "unknown",
-			Satellite.AP1 : "unknown",
-			Satellite.US1 : "unknown",
-			Satellite.EU1 : "unknown"
-		}
+		self.usf = {sat: "unknown" for sat in Satellite}
+		self.gcf = {sat: "unknown" for sat in Satellite}
+		self.tcf = {sat: "unknown" for sat in Satellite}
 
-		# Used to store if TCF is running
-		self.tcf = {
-			Satellite.SL  : "unknown",
-			Satellite.AP1 : "unknown",
-			Satellite.US1 : "unknown",
-			Satellite.EU1 : "unknown"
-		}
+		self.usf_set = {sat: False for sat in Satellite}
+		self.gcf_set = {sat: False for sat in Satellite}
+		self.tcf_set = {sat: False for sat in Satellite}
 
-		# Parse the log during initiation of this object.
-		self.read_Log(logPath)
-		self.readEarningsCalculator(dbPath, earningsCalculator)
-		self.parse_Earnings_Calculator()
+		self.read_log(log_dir)
+		self.run_earnings_calculator(db_path, earnings_calculator)
+		self.parse_earnings()
 
+	def read_log(self, log_dir):
+		log_files = glob.glob(os.path.join(log_dir, "*"))
+		log_files.sort(key=os.path.getmtime, reverse=True)
 
-	def read_Log(self, logPath):
-		try:
-			# Get file size in MB
-			total_size_bytes = os.path.getsize(logPath)
-			total_size_mb = total_size_bytes / (1024 * 1024)  # Bytes to MB
-			total_size_mb_rounded = round(total_size_mb, 1)   # Round to one decimal place
+		sys.stdout.write(f'\r[INFO] Processing {self.name}\n')
+		sys.stdout.flush()
 
-			# Prepare progress bar
-			bytes_read = 0
-			sys.stdout.write(f'\r[ ~~ ] Reading log of {self.name} ... {bytes_read / (1024 * 1024):.1f}/{total_size_mb_rounded} MB')
-			sys.stdout.flush()
+		for log_file in log_files:
+			with open(log_file, 'rb') as f:
+				sys.stdout.write(f'\r[ ~~ ] Reading {log_file}')
+				sys.stdout.flush()
 
-			with open(logPath, 'r') as f:
-				for line in f:
-					bytes_read += len(line.encode('utf-8'))  # Anzahl der gelesenen Bytes aktualisieren
+				data = f.read()
+				lines = data.split(b'\n')
+				lines.reverse()
 
-					if "trash-cleanup-filewalker" in line:
-						self.parse_TCF_line(line)
-					elif "gc-filewalker" in line:
-						self.parse_GCF_line(line)
-					elif "used-space-filewalker" in line:
-						self.parse_USF_line(line)
-					elif "Configuration loaded" in line:
-						self.is_up = True
-						self.set_uptime(line)
-						self.reset_all_states()
-					elif 'Got a signal from the OS: "terminated"' in line:
-						self.is_up = False
-						self.set_offline()
+				for line in lines:
+					line = line.decode('utf-8')
+					self.process_log_line(line)
 
-					sys.stdout.write(f'\r[ ~~ ] Reading log of {self.name} ... {bytes_read / (1024 * 1024):.1f}/{total_size_mb_rounded} MB')
+					if self.is_up:
+						sys.stdout.write(f'\r[ OK ] {log_file} read                                             \n')
+						sys.stdout.flush()
+						break
+				else:
+					sys.stdout.write(f'\r[ OK ] {log_file} read                                             \n')
 					sys.stdout.flush()
+					continue
 
-			sys.stdout.write(f'\r[ OK ] Reading log of {self.name} ... {bytes_read / (1024 * 1024):.1f} MB read                          \n')
-			sys.stdout.flush()
-		except:
-			raise
+			break
 
+	def process_log_line(self, line):
+		if "trash-cleanup-filewalker" in line:
+			self.parse_tcf_line(line)
+		elif "gc-filewalker" in line:
+			self.parse_gcf_line(line)
+		elif "used-space-filewalker" in line:
+			self.parse_usf_line(line)
+		elif "Configuration loaded" in line:
+			self.is_up = True
+			self.set_uptime(line)
+			return True
+		return False
 
 	def set_uptime(self, line):
-		# Extract the timestamp string from the log line
 		timestamp_str = line[:25]
-
-		try:
-			# Try to parse the timestamp including the timezone if present
-			time = datetime.fromisoformat(timestamp_str)
-		except ValueError:
-			# If no timezone is present, parse without timezone and assume it's UTC
-			time = datetime.strptime(timestamp_str[:19], '%Y-%m-%dT%H:%M:%S')
-			time = time.replace(tzinfo=timezone.utc)
-
-		# Normalize the time to UTC
+		time = self.parse_timestamp(timestamp_str)
 		time_utc = time.astimezone(timezone.utc)
-
-		# Get the current time in UTC
 		current_time_utc = datetime.now(timezone.utc)
-
-		# Calculate the uptime
 		uptime = current_time_utc - time_utc
+		days, hours = uptime.days, uptime.seconds // 3600
+		self.uptime = f'{days}d {hours}h'
 
-		# Extract days and hours from the uptime
-		days = uptime.days
-		hours, remainder = divmod(uptime.seconds, 3600)
-
-		# Format the output string
-		output = f'{days}d {hours}h'
-
-		# Set the uptime
-		self.uptime = output
-
-
-	def set_offline(self):
-		self.usf = {
-			Satellite.SL  : "offline",
-			Satellite.AP1 : "offline",
-			Satellite.US1 : "offline",
-			Satellite.EU1 : "offline"
-		}
-
-		# Used to store if GCF is running
-		self.gcf = {
-			Satellite.SL  : "offline",
-			Satellite.AP1 : "offline",
-			Satellite.US1 : "offline",
-			Satellite.EU1 : "offline"
-		}
-
-		# Used to store if TCF is running
-		self.tcf = {
-			Satellite.SL  : "offline",
-			Satellite.AP1 : "offline",
-			Satellite.US1 : "offline",
-			Satellite.EU1 : "offline"
-		}
-
-		self.uptime = "offline"		
-
-
-	def reset_all_states(self):
-		self.usf = {
-			Satellite.SL  : "unknown",
-			Satellite.AP1 : "unknown",
-			Satellite.US1 : "unknown",
-			Satellite.EU1 : "unknown"
-		}
-
-		# Used to store if GCF is running
-		self.gcf = {
-			Satellite.SL  : "unknown",
-			Satellite.AP1 : "unknown",
-			Satellite.US1 : "unknown",
-			Satellite.EU1 : "unknown"
-		}
-
-		# Used to store if TCF is running
-		self.tcf = {
-			Satellite.SL  : "unknown",
-			Satellite.AP1 : "unknown",
-			Satellite.US1 : "unknown",
-			Satellite.EU1 : "unknown"
-		}
-
-
-	def readEarningsCalculator(self, dbPath, earningsCalculator):
+	def parse_timestamp(self, timestamp_str):
 		try:
-			sys.stdout.write('\r[ ~~ ] Running earnings calculator for ' +  self.name + '\r')
+			return datetime.fromisoformat(timestamp_str)
+		except ValueError:
+			time = datetime.strptime(timestamp_str[:19], '%Y-%m-%dT%H:%M:%S')
+			return time.replace(tzinfo=timezone.utc)
+
+	def run_earnings_calculator(self, db_path, earnings_calculator):
+		try:
+			sys.stdout.write(f'\r[ ~~ ] Running earnings calculator for {self.name}\r')
 			sys.stdout.flush()
-			self.earnings = subprocess.run([sys.executable, earningsCalculator, dbPath], capture_output=True, text=True)
-			sys.stdout.write('\r[ OK ] Running earnings calculator for ' +  self.name + '\n')
+			self.earnings = subprocess.run([sys.executable, earnings_calculator, db_path], capture_output=True, text=True)
+			sys.stdout.write(f'\r[ OK ] Running earnings calculator for {self.name}\n')
 			sys.stdout.flush()
-		except:
+		except subprocess.SubprocessError:
 			sys.exit("ERROR: Could not run earnings calculator")
 
-
-	def parse_Earnings_Calculator(self):
+	def parse_earnings(self):
 		for line in self.earnings.stdout.splitlines():
 			if "Total\t\t\t\t\t" in line:
-				i = line.rfind(' ')
-				self.current_total = line[i+1:]
+				self.current_total = self.extract_last_value(line)
 			if "Estimated total" in line:
-				i = line.rfind(' ')
-				self.estimated_total = line[i+1:]
+				self.estimated_total = self.extract_last_value(line)
 			if "Disk Current Total" in line:
-				i = find_second_space_from_right(line)
-				self.disk_used = line[i+1:]
+				self.disk_used = self.extract_value_with_unit(line)
 			if "Total Unpaid Data <─" in line:
-				i = find_second_space_from_right(line)
-				self.unpaid_data = line[i+1:]
+				self.unpaid_data = self.extract_value_with_unit(line)
 			if "Disk Last Report deviates" in line:
-				self.deviation_percentage = extract_percentage(line)
+				self.deviation_percentage = self.extract_percentage(line)
 
+	def extract_last_value(self, line):
+		return line.split()[-1]
 
-	def parse_TCF_line(self, line):
+	def extract_value_with_unit(self, line):
+		parts = line.split()
+		return f'{parts[-2]} {parts[-1]}'
+
+	def extract_percentage(self, line):
+		import re
+		match = re.search(r'\b\d+(\.\d+)?%', line)
+		return match.group(0) if match else "0%"
+
+	def parse_tcf_line(self, line):
+		self.parse_satellite_line(line, self.tcf, self.tcf_set)
+
+	def parse_gcf_line(self, line):
+		self.parse_satellite_line(line, self.gcf, self.gcf_set)
+
+	def parse_usf_line(self, line):
+		self.parse_satellite_line(line, self.usf, self.usf_set)
+
+	def parse_satellite_line(self, line, status_dict, status_set_dict):
 		for sat in Satellite:
-			if "finished successfully" in line and sat.value in line:
-				self.tcf[sat] = self.parse_date_and_time(line)
-				return
-			elif "subprocess started" in line and sat.value in line:
-				self.tcf[sat] = "running"
-				return
-
-
-	def parse_GCF_line(self, line):
-		for sat in Satellite:
-			if "finished successfully" in line and sat.value in line:
-				self.gcf[sat] = self.parse_date_and_time(line)
-				return
-			elif "subprocess started" in line and sat.value in line:
-				self.gcf[sat] = "running"
-				return		
-
-
-	def parse_USF_line(self, line):
-		for sat in Satellite:
-			if "finished successfully" in line and sat.value in line:
-				self.usf[sat] = self.parse_date_and_time(line)
-				return
-			elif "subprocess started" in line and sat.value in line:
-				self.usf[sat] = "running"
-				return		
-
+			if not status_set_dict[sat]:
+				if "finished successfully" in line and sat.value in line:
+					status_dict[sat] = self.parse_date_and_time(line)
+					status_set_dict[sat] = True
+				elif "subprocess started" in line and sat.value in line:
+					status_dict[sat] = "running"
 
 	def parse_date_and_time(self, line):
-		# Extract the timestamp string from the log line
 		timestamp_str = line[:25]
-
-		try:
-			# Try to parse the timestamp including the timezone if present
-			time = datetime.fromisoformat(timestamp_str)
-		except ValueError:
-			# If no timezone is present, parse without timezone and assume it's UTC
-			time = datetime.strptime(timestamp_str[:19], '%Y-%m-%dT%H:%M:%S')
-			time = time.replace(tzinfo=timezone.utc)
-
-		# Normalize the time to UTC
+		time = self.parse_timestamp(timestamp_str)
 		time_utc = time.astimezone(timezone.utc)
-
-		# Get the current time in UTC
 		current_time_utc = datetime.now(timezone.utc)
-
-		# Calculate the time difference
 		time_difference = current_time_utc - time_utc
-
-		# Extract days, hours, minutes, and seconds from the time difference
-		days = time_difference.days
-		seconds = time_difference.seconds
-		hours, remainder = divmod(seconds, 3600)
-		minutes, seconds = divmod(remainder, 60)
-
+		days, hours = time_difference.days, time_difference.seconds // 3600
 		return f'{days}d {hours}h ago'
 		
 
