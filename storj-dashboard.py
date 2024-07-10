@@ -351,17 +351,29 @@ class Node:
 			sys.exit("ERROR: Could not run earnings calculator")
 
 	def parse_earnings(self):
-		for line in self.earnings.stdout.splitlines():
-			if "Total\t\t\t\t\t" in line:
-				self.current_total = self.extract_last_value(line)
-			if "Estimated total" in line:
-				self.estimated_total = self.extract_last_value(line)
-			if "Disk Current Total" in line:
-				self.disk_used = self.extract_value_with_unit(line)
-			if "Total Unpaid Data <─" in line:
-				self.unpaid_data = self.extract_value_with_unit(line)
-			if "Disk Last Report deviates" in line:
-				self.deviation_percentage = self.extract_percentage(line)
+		if self.earnings.stdout.splitlines() == []:
+			print("[WARN] Output of earnings calculator is empty. Check if your config (earnings calculator) is correct!")
+			return
+		try:
+			print()
+			for line in self.earnings.stdout.splitlines():
+				try:
+					if "Total\t\t\t\t\t" in line:
+						self.current_total = self.extract_last_value(line)
+					if "Estimated total" in line:
+						self.estimated_total = self.extract_last_value(line)
+					if "Disk Current Total" in line:
+						self.disk_used = self.extract_value_with_unit(line)
+					if "Total Unpaid Data <─" in line:
+						self.unpaid_data = self.extract_value_with_unit(line)
+					if "Disk Last Report deviates" in line:
+						self.deviation_percentage = self.extract_percentage(line)
+				except Exception as e:
+					print(f"Error processing line: {line}")
+					logging.error(traceback.format_exc())
+		except Exception as e:
+			print("Invalid earnings calculator output. Check if earnings calculator is working.")
+			logging.error(traceback.format_exc())
 
 	def extract_last_value(self, line):
 		return line.split()[-1]
