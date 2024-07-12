@@ -134,7 +134,7 @@ class Terminal:
 
 		# Check if deviation_percentage is set and format the warning string with ANSI color codes
 		if str(node.deviation_percentage):
-			deviation_warning = f"\033[31m Report Deviation: {str(node.deviation_percentage)} % \033[0m"
+			deviation_warning = f"\033[31m Report Deviation: {str(node.deviation_percentage)}\033[0m"
 
 		# Retrieve and color format values for different satellites
 		gcf_sl  = colored_value(node.gcf[Satellite.SL])
@@ -402,7 +402,7 @@ class Node:
 				if "finished successfully" in line and sat.value in line:
 					status_dict[sat] = self.parse_date_and_time(line)
 					status_set_dict[sat] = True
-				elif "subprocess started" in line and sat.value in line:
+				elif "filewalker started" in line and sat.value in line:
 					status_dict[sat] = "running"
 
 	def parse_date_and_time(self, line):
