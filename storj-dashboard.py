@@ -404,6 +404,7 @@ class Node:
 					status_set_dict[sat] = True
 				elif "filewalker started" in line and sat.value in line:
 					status_dict[sat] = "running"
+					status_set_dict[sat] = True
 
 	def parse_date_and_time(self, line):
 		timestamp_str = line[:25]
