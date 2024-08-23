@@ -409,7 +409,7 @@ class Node:
     def parse_satellite_line(self, line, status_dict, status_set_dict):
         for sat in Satellite:
             if not status_set_dict[sat]:
-                if "finished successfully" in line and sat.value in line:
+                if "filewalker completed" in line and sat.value in line:
                     status_dict[sat] = self.parse_date_and_time(line)
                     status_set_dict[sat] = True
                 elif "filewalker started" in line and sat.value in line:
