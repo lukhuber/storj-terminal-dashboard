@@ -314,9 +314,9 @@ class Node:
             self.uptime = "offline"
             self.set_offline()
             return True
-        if "trash-cleanup-filewalker" in line:
+        if "emptying" in line:
             self.parse_tcf_line(line)
-        elif "gc-filewalker" in line:
+        elif "retain" in line:
             self.parse_gcf_line(line)
         elif "used-space-filewalker" in line:
             self.parse_usf_line(line)
@@ -409,10 +409,18 @@ class Node:
     def parse_satellite_line(self, line, status_dict, status_set_dict):
         for sat in Satellite:
             if not status_set_dict[sat]:
-                if "filewalker completed" in line and sat.value in line:
+                if "finished" in line and sat.value in line:
                     status_dict[sat] = self.parse_date_and_time(line)
                     status_set_dict[sat] = True
-                elif "filewalker started" in line and sat.value in line:
+                elif "completed" in line and sat.value in line:
+                    status_dict[sat] = self.parse_date_and_time(line)
+                    status_set_dict[sat] = True
+                elif "Moved" in line and sat.value in line:
+                    status_dict[sat] = self.parse_date_and_time(line)
+                    status_set_dict[sat] = True
+                elif "started" in line and sat.value in line:
+                    status_dict[sat] = "running"
+                elif "Prepared" in line and sat.value in line:
                     status_dict[sat] = "running"
 
     def parse_date_and_time(self, line):
